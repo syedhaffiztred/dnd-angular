@@ -71,21 +71,6 @@ export class WidgetDashboardComponent implements OnInit {
     {selector: 'app-d', w: 2, maxW: 3},
     {selector: 'app-e', w: 10, h: 10, maxW: 3}
   ];
-  sidebarItems: SidebarItem[] = [
-    { title: 'Performance Metrics', subtitle: 'Key business indicators' },
-    { title: 'Analytics Chart', subtitle: 'Data visualization' },
-    { title: 'Schedule', subtitle: 'Upcoming events' },
-    { title: 'Data Table', subtitle: 'Tabular data view' },
-    { title: 'Team Activity', subtitle: 'Recent updates' },
-    { title: 'Recent Messages', subtitle: 'Communication feed' },
-    { title: 'Demo', subtitle: 'Demo card' }
-  ];
-
-
-  
-  trackByFn(index: number, item: SidebarItem): string {
-    return item.title;
-  }
 
   toggleEditMode() {
     this.isEditMode = !this.isEditMode;

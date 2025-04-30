@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, ElementRef, Input, Inject, Optional } from '@angular/core';
+import { Component, ElementRef, Input, Inject, Optional, Output, EventEmitter, HostListener } from '@angular/core';
 import { GridStack } from 'gridstack';
 import { NgGridStackOptions } from 'gridstack/dist/angular';
 
@@ -16,7 +16,7 @@ import { NgGridStackOptions } from 'gridstack/dist/angular';
     <div class="widget-wrapper">
       <div class="widget-header">
         <h4>{{ widgetTitle }}</h4>
-        <button class="close-btn">×</button>
+        <button class="close-btn" (click)="removeWidget($event)">×</button>
       </div>
       <div class="widget-content">
         <ng-content></ng-content>
@@ -71,8 +71,11 @@ import { NgGridStackOptions } from 'gridstack/dist/angular';
 export class HocWrapperComponent {
   @Input() widgetTitle?: string;
   @Input() widgetId?: string;
+  @Input() grid?: GridStack;
+  @Output() widgetRemoved = new EventEmitter<string>();
 
   private isBeingRemoved = false;
+  
   constructor(private el: ElementRef) {}
 
   public gridOptions: NgGridStackOptions = {
@@ -82,11 +85,80 @@ export class HocWrapperComponent {
     minRow: 150,
     acceptWidgets: true,
     float: true,
-    children: [
-    ] 
+    children: []
   };
   
-
+  /**
+   * Removes this widget from the grid
+   * @param event The DOM event from the click
+   */
+  removeWidget(event: Event): void {
+    try {
+      // Prevent event bubbling
+      event.preventDefault();
+      event.stopPropagation();
+      
+      // Prevent multiple removal attempts
+      if (this.isBeingRemoved) {
+        console.warn('Widget removal already in progress');
+        return;
+      }
+      
+      this.isBeingRemoved = true;
+      
+      // Find the grid-stack-item parent element
+      const widget = this.el.nativeElement.closest('.grid-stack-item');
+      
+      if (!widget) {
+        console.warn('Cannot remove widget: Grid item element not found');
+        this.isBeingRemoved = false;
+        return;
+      }
+      
+      // If grid was provided via input, use it directly
+      if (this.grid) {
+        console.log(`Removing widget ${this.widgetId || 'unknown'}`);
+        
+        // Emit the removal event before actual removal
+        if (this.widgetId) {
+          this.widgetRemoved.emit(this.widgetId);
+        }
+        
+        // Remove the widget from GridStack
+        this.grid.removeWidget(widget, true, true);
+      } else {
+        // Try to find GridStack instance if not provided
+        console.warn('Grid instance not provided to component - attempting to find GridStack from DOM');
+        
+        // Find the closest grid element
+        const gridElement = widget.closest('.grid-stack');
+        
+        if (gridElement) {
+          // Get the GridStack instance from the element
+          const gridInstance = gridElement.gridstack;
+          
+          if (gridInstance) {
+            // Emit the removal event before actual removal
+            if (this.widgetId) {
+              this.widgetRemoved.emit(this.widgetId);
+            }
+            
+            // Remove from GridStack
+            gridInstance.removeWidget(widget, true, true);
+          } else {
+            console.error('GridStack instance not found');
+            this.isBeingRemoved = false;
+          }
+        } else {
+          console.error('Grid container not found');
+          this.isBeingRemoved = false;
+        }
+      }
+    } catch (error) {
+      console.error('Error removing widget:', error);
+      this.isBeingRemoved = false;
+    }
+  }
 }
 
 // Component A - Performance Metrics
