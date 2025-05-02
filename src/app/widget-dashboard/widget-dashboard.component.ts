@@ -17,6 +17,7 @@ import {
   gsCreateNgComponents, 
 } from 'gridstack/dist/angular';
 import { GridStack } from 'gridstack';
+import { MatSnackBar } from '@angular/material/snack-bar';
 
 
 interface SidebarItem {
@@ -44,6 +45,8 @@ interface SidebarItem {
 
 
 export class WidgetDashboardComponent implements OnInit {
+  private compactTimeout: any;
+  private isCompacting = false;
 
   @ViewChild(GridstackComponent) gridComp?: GridstackComponent;
   @ViewChild('origTextArea', {static: false}) origTextEl?: ElementRef<HTMLTextAreaElement>;
@@ -85,11 +88,19 @@ export class WidgetDashboardComponent implements OnInit {
     this.onShow();
     GridStack.addRemoveCB = gsCreateNgComponents;
   }
+  
+  constructor(private snackBar: MatSnackBar) {}
 
   public onShow(): void {
-    
+    this.gridOptions = {
+      ...this.gridOptions,
+      children: [
+        {selector: 'app-a', w: 10, h: 10, maxW: 3},
+      ] 
+    };
 
     GridStack.setupDragIn('.sidebar-item', { appendTo: 'body' }, this.sidebarContent);
+    console.log('GridstackComponent', this.gridComp);
 
     setTimeout(() => {
       if (this.origTextEl) {
@@ -101,5 +112,28 @@ export class WidgetDashboardComponent implements OnInit {
     });
   }
 
- 
+  compactLayout(): void {
+    if (!this.gridComp?.grid || this.isCompacting) return;
+    
+    this.isCompacting = true;
+    this.snackBar.open('Compacting layout...', 'Close', {
+      duration: 3000,
+      horizontalPosition: 'right',
+      verticalPosition: 'bottom'
+    });
+    
+    // Perform compaction
+    this.gridComp.grid.compact();
+    
+    // Debounce the save
+    clearTimeout(this.compactTimeout);
+    this.compactTimeout = setTimeout(() => {
+      this.isCompacting = false;
+      this.snackBar.open('Layout compacted successfully', 'Close', {
+        duration: 3000,
+        horizontalPosition: 'right',
+        verticalPosition: 'bottom'
+      });
+    }, 300);
+  }
 }
