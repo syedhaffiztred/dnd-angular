@@ -23,6 +23,7 @@ import { AComponent, BComponent, CComponent, DComponent, EComponent } from './wi
 })
 export class AppComponent {
   title = 'angular-dashboard';
+  
   constructor() {
     // Register all dynamic component types with GridStack
     GridstackComponent.addComponentToSelectorType([

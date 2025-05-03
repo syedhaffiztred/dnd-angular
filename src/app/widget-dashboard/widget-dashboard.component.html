@@ -13,10 +13,18 @@
             <mat-icon>compress</mat-icon> 
             {{isCompacting ? 'Compacting...' : 'Compact Layout'}}
           </button>
-          <mat-slide-toggle [(ngModel)]="isEditMode">{{isEditMode ? 'Edit Mode' : 'View Mode'}}</mat-slide-toggle>
+          <mat-slide-toggle [(ngModel)]="isEditMode">
+            {{isEditMode ? 'Edit Mode' : 'View Mode'}}
+          </mat-slide-toggle>
         </div>
       </div>
   
+      <!-- Loading Overlay -->
+      <div *ngIf="isLoading" class="loading-overlay">
+        <!-- <mat-spinner></mat-spinner> -->
+      </div>
+  
+      <!-- GridStack Container -->
       <gridstack [options]="gridOptions">
         <!-- Dynamic widgets will be loaded here -->
       </gridstack>
@@ -28,20 +36,18 @@
         <h3>Widget Library</h3>
       </div>
       <div class="sidebar">
-       
-        <div *ngFor="let item of sidebarItems" 
+        <!-- Loop through widget configs instead of separate sidebar items -->
+        <div *ngFor="let widget of widgetConfigs" 
              class="sidebar-item grid-stack-item" 
              draggable="true">
           <div class="icon-placeholder">
-
+            <mat-icon>{{widget.icon}}</mat-icon>
           </div>
           <div class="card-content">
-            <div class="card-title">{{item.title}}</div>
-            <div class="card-subtitle">{{item.subtitle}}</div>
+            <div class="card-title">{{widget.title}}</div>
+            <div class="card-subtitle">{{widget.subtitle}}</div>
           </div>
         </div>
-
-
       </div>
     </div>
   </div>

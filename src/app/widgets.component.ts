@@ -1,12 +1,10 @@
 import { CommonModule } from '@angular/common';
-import { Component, ElementRef, Input, Inject, Optional, Output, EventEmitter, HostListener } from '@angular/core';
+import { Component, ElementRef, Input, Output, EventEmitter } from '@angular/core';
 import { GridStack } from 'gridstack';
-import { NgGridStackOptions } from 'gridstack/dist/angular';
 
 /**
  * Higher-Order Component Wrapper for grid widgets
- * This component does not directly depend on GridStack implementation
- * but communicates with parent components through events
+ * This component provides a consistent UI shell for all dashboard widgets
  */
 @Component({
   selector: 'app-hoc-wrapper',
@@ -77,16 +75,6 @@ export class HocWrapperComponent {
   private isBeingRemoved = false;
   
   constructor(private el: ElementRef) {}
-
-  public gridOptions: NgGridStackOptions = {
-    column: 6,
-    cellHeight: 50,
-    margin: 5,
-    minRow: 150,
-    acceptWidgets: true,
-    float: true,
-    children: []
-  };
   
   /**
    * Removes this widget from the grid
@@ -161,13 +149,14 @@ export class HocWrapperComponent {
   }
 }
 
+
 // Component A - Performance Metrics
 @Component({
   selector: 'app-a',
   standalone: true,
   imports: [CommonModule, HocWrapperComponent],
   template: `
-    <app-hoc-wrapper widgetTitle="Performance Metrics">
+    <app-hoc-wrapper [widgetId]="widgetId" [widgetTitle]="widgetTitle" [grid]="gridInstance" (widgetRemoved)="onWidgetRemoved($event)">
       <div class="metric-widget">
         <div class="metric-value">87.5%</div>
         <div class="metric-label">Completion Rate</div>
@@ -210,7 +199,14 @@ export class HocWrapperComponent {
     }
   `]
 })
-export class AComponent  {
+export class AComponent {
+  @Input() widgetId?: string;
+  @Input() widgetTitle = 'Performance Metrics';
+  @Input() gridInstance?: GridStack;
+  
+  onWidgetRemoved(id: string): void {
+    console.log(`Widget ${id} removed from component A`);
+  }
 }
 
 // Component B - Analytics Chart
@@ -219,7 +215,7 @@ export class AComponent  {
   standalone: true,
   imports: [CommonModule, HocWrapperComponent],
   template: `
-    <app-hoc-wrapper widgetTitle="Analytics Chart">
+    <app-hoc-wrapper [widgetId]="widgetId" [widgetTitle]="widgetTitle" [grid]="gridInstance" (widgetRemoved)="onWidgetRemoved($event)">
       <div class="chart-placeholder">
         <p>Chart visualization will appear here</p>
       </div>
@@ -240,6 +236,13 @@ export class AComponent  {
   `]
 })
 export class BComponent {
+  @Input() widgetId?: string;
+  @Input() widgetTitle = 'Analytics Chart';
+  @Input() gridInstance?: GridStack;
+  
+  onWidgetRemoved(id: string): void {
+    console.log(`Widget ${id} removed from component B`);
+  }
 }
 
 // Component C - Schedule
@@ -248,7 +251,7 @@ export class BComponent {
   standalone: true,
   imports: [CommonModule, HocWrapperComponent],
   template: `
-    <app-hoc-wrapper widgetTitle="Schedule">
+    <app-hoc-wrapper [widgetId]="widgetId" [widgetTitle]="widgetTitle" [grid]="gridInstance" (widgetRemoved)="onWidgetRemoved($event)">
       <div class="schedule-widget">
         <div class="schedule-item" *ngFor="let item of scheduleItems">
           <div class="time">{{ item.time }}</div>
@@ -284,7 +287,11 @@ export class BComponent {
     }
   `]
 })
-export class CComponent  {
+export class CComponent {
+  @Input() widgetId?: string;
+  @Input() widgetTitle = 'Schedule';
+  @Input() gridInstance?: GridStack;
+  
   scheduleItems = [
     { time: '09:00', event: 'Team Standup' },
     { time: '11:30', event: 'Client Meeting' },
@@ -292,6 +299,9 @@ export class CComponent  {
     { time: '16:00', event: 'Retrospective' }
   ];
   
+  onWidgetRemoved(id: string): void {
+    console.log(`Widget ${id} removed from component C`);
+  }
 }
 
 // Component D - Data Table
@@ -300,7 +310,7 @@ export class CComponent  {
   standalone: true,
   imports: [CommonModule, HocWrapperComponent],
   template: `
-    <app-hoc-wrapper widgetTitle="Data Table">
+    <app-hoc-wrapper [widgetId]="widgetId" [widgetTitle]="widgetTitle" [grid]="gridInstance" (widgetRemoved)="onWidgetRemoved($event)">
       <table class="data-table">
         <thead>
           <tr>
@@ -337,7 +347,11 @@ export class CComponent  {
     }
   `]
 })
-export class DComponent  {
+export class DComponent {
+  @Input() widgetId?: string;
+  @Input() widgetTitle = 'Data Table';
+  @Input() gridInstance?: GridStack;
+  
   tableData = [
     { name: 'Revenue', value: '$12,345' },
     { name: 'Users', value: '1,234' },
@@ -345,7 +359,9 @@ export class DComponent  {
     { name: 'Avg. Session', value: '2m 45s' }
   ];
   
-  
+  onWidgetRemoved(id: string): void {
+    console.log(`Widget ${id} removed from component D`);
+  }
 }
 
 // Component E - Team Activity
@@ -354,7 +370,7 @@ export class DComponent  {
   standalone: true,
   imports: [CommonModule, HocWrapperComponent],
   template: `
-    <app-hoc-wrapper widgetTitle="Team Activity">
+    <app-hoc-wrapper [widgetId]="widgetId" [widgetTitle]="widgetTitle" [grid]="gridInstance" (widgetRemoved)="onWidgetRemoved($event)">
       <div class="activity-widget">
         <div class="activity-item" *ngFor="let activity of activities">
           <div class="avatar">{{ activity.initials }}</div>
@@ -407,11 +423,18 @@ export class DComponent  {
     }
   `]
 })
-export class EComponent  {
+export class EComponent {
+  @Input() widgetId?: string;
+  @Input() widgetTitle = 'Team Activity';
+  @Input() gridInstance?: GridStack;
+  
   activities = [
     { initials: 'JD', name: 'John Doe', action: 'Updated project timeline' },
     { initials: 'AS', name: 'Alice Smith', action: 'Completed task #1234' },
     { initials: 'BJ', name: 'Bob Johnson', action: 'Commented on PR #567' }
   ];
   
+  onWidgetRemoved(id: string): void {
+    console.log(`Widget ${id} removed from component E`);
+  }
 }

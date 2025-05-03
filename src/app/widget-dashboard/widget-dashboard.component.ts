@@ -1,4 +1,4 @@
-import { Component, ElementRef, OnInit, ViewChild } from '@angular/core';
+import { Component, ElementRef, OnInit, ViewChild, AfterViewInit } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { CommonModule } from '@angular/common';
@@ -6,20 +6,14 @@ import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { FormsModule } from '@angular/forms';
 import { 
   GridstackComponent, 
-  GridstackItemComponent, 
   NgGridStackOptions, 
-  nodesCB, 
   NgGridStackWidget, 
-  gsCreateNgComponents, 
+  gsCreateNgComponents
 } from 'gridstack/dist/angular';
 import { GridStack } from 'gridstack';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { WIDGET_CONFIG, WidgetConfig } from '../widgets.config';
 
-interface SidebarItem {
-  icon: string;
-  title: string;
-  subtitle: string;
-}
 
 @Component({
   selector: 'app-widget-dashboard',
@@ -35,7 +29,7 @@ interface SidebarItem {
   templateUrl: './widget-dashboard.component.html',
   styleUrls: ['./widget-dashboard.component.css']
 })
-export class WidgetDashboardComponent implements OnInit {
+export class WidgetDashboardComponent implements OnInit, AfterViewInit {
   protected compactTimeout: any;
   protected isCompacting = false;
   protected saveTimeout: any;
@@ -46,6 +40,9 @@ export class WidgetDashboardComponent implements OnInit {
 
   isEditMode = false;
   isLoading = false;
+  
+  // Widget configurations
+  widgetConfigs: WidgetConfig[] = WIDGET_CONFIG;
 
   public gridOptions: NgGridStackOptions = {
     column: 12,
@@ -63,67 +60,27 @@ export class WidgetDashboardComponent implements OnInit {
     children: []
   };
 
-  public sidebarContent: NgGridStackWidget[] = [
-    {selector: 'app-a', id: 'performance-metrics', w: 2, h: 2, maxW: 3},
-    {selector: 'app-b', id: 'analytics-chart', w: 2, h: 2, maxW: 3},
-    {selector: 'app-c', id: 'schedule', w: 2, h: 2, maxW: 3},
-    {selector: 'app-d', id: 'data-table', w: 2, h: 2, maxW: 3},
-    {selector: 'app-e', id: 'team-activity', w: 2, h: 2, maxW: 3},
-    {selector: 'app-a', id: 'performance-metrics', w: 2, h: 2, maxW: 3},
-    {selector: 'app-b', id: 'analytics-chart', w: 2, h: 2, maxW: 3},
-    {selector: 'app-c', id: 'schedule', w: 2, h: 2, maxW: 3},
-    {selector: 'app-d', id: 'data-table', w: 2, h: 2, maxW: 3},
-    {selector: 'app-e', id: 'team-activity', w: 2, h: 2, maxW: 3}
-  ];
-
-  public sidebarItems: SidebarItem[] = [
-    {
-      icon: "speed",
-      title: "Performance Metrics",
-      subtitle: "Key business indicators"
-    },
-    {
-      icon: "bar_chart",
-      title: "Analytics Chart",
-      subtitle: "Data visualization"
-    },
-    {
-      icon: "event",
-      title: "Schedule",
-      subtitle: "Upcoming events"
-    },
-    {
-      icon: "table_chart",
-      title: "Data Table",
-      subtitle: "Tabular data view"
-    },
-    {
-      icon: "group",
-      title: "Team Activity",
-      subtitle: "Recent updates"
-    },
-    {
-      icon: "message",
-      title: "Recent Messages",
-      subtitle: "Communication feed"
-    },
-    {
-      icon: "info",
-      title: "demo",
-      subtitle: "demo card"
-    }
-  ];
+  // Map widget configs to GridStack format
+  public sidebarContent: NgGridStackWidget[] = this.widgetConfigs.map(config => ({
+    selector: config.selector,
+    id: config.id,
+    w: config.w,
+    h: config.h,
+    maxW: config.maxW,
+    maxH: config.maxH
+  }));
 
   constructor(private snackBar: MatSnackBar) {}
 
-ngOnInit(): void {
-  
-}
+  ngOnInit(): void {
+    // Check for saved layout on init
+    this.checkForSavedLayout();
+  }
 
-ngAfterViewInit():void{
+  ngAfterViewInit(): void {
+    // Setup drag and drop from sidebar
     GridStack.addRemoveCB = gsCreateNgComponents;
-
-    GridStack.setupDragIn('.sidebar> .sidebar-item', { appendTo: 'body' }, this.sidebarContent);
+    GridStack.setupDragIn('.sidebar > .sidebar-item', { appendTo: 'body' }, this.sidebarContent);
  
     setTimeout(() => {
       if (this.origTextEl) {
@@ -133,23 +90,16 @@ ngAfterViewInit():void{
         this.textEl.nativeElement.value = '';
       }
     });
-
-
-
-
   }
 
-
-  
-
-
-  toggleEditMode() {
+  toggleEditMode(): void {
     this.isEditMode = !this.isEditMode;
     
-    // Update gridOptions with the correct disableDrag value
+    // Update gridOptions with the correct disableDrag and disableResize values
+    // In edit mode, we want to disable dragging and enable resizing
     this.gridOptions = {
       ...this.gridOptions,
-      disableDrag: this.isEditMode, // true when isEditMode is true
+      disableDrag: this.isEditMode,
       disableResize: !this.isEditMode
     };
 
@@ -159,6 +109,7 @@ ngAfterViewInit():void{
       this.gridComp.grid.enableResize(!this.isEditMode);
     }
 
+    // Save layout when exiting edit mode
     if (!this.isEditMode) {
       this.saveLayout();
     }
@@ -205,18 +156,19 @@ ngAfterViewInit():void{
     }, 500);
   }
 
-  private loadLayout(): void {
+  private checkForSavedLayout(): void {
     const savedLayout = localStorage.getItem('dashboardLayout');
-    if (savedLayout && this.gridComp?.grid) {
-      this.isLoading = true;
+    if (savedLayout) {
       try {
         const layout = JSON.parse(savedLayout);
-        this.gridComp.grid.load(layout);
+        // Set the saved layout to be loaded when the grid is ready
+        this.gridOptions = {
+          ...this.gridOptions,
+          children: layout
+        };
       } catch (e) {
-        console.error('Error loading layout:', e);
+        console.error('Error parsing saved layout:', e);
         this.loadDefaultLayout();
-      } finally {
-        this.isLoading = false;
       }
     } else {
       this.loadDefaultLayout();
@@ -224,13 +176,34 @@ ngAfterViewInit():void{
   }
 
   private loadDefaultLayout(): void {
+    // Use the first two widgets as default layout
     this.gridOptions = {
       ...this.gridOptions,
       children: [
-        {selector: 'app-a', id: 'default-performance', w: 2, h: 2, x: 0, y: 0},
-        {selector: 'app-b', id: 'default-analytics', w: 2, h: 2, x: 2, y: 0}
+        {
+          selector: this.widgetConfigs[0].selector,
+          id: this.widgetConfigs[0].id,
+          w: this.widgetConfigs[0].w,
+          h: this.widgetConfigs[0].h,
+          x: 0,
+          y: 0
+        },
+        {
+          selector: this.widgetConfigs[1].selector,
+          id: this.widgetConfigs[1].id,
+          w: this.widgetConfigs[1].w,
+          h: this.widgetConfigs[1].h,
+          x: this.widgetConfigs[0].w,
+          y: 0
+        }
       ]
     };
   }
 
+  // Method to handle widget removal events from child components
+  onWidgetRemoved(widgetId: string): void {
+    console.log(`Widget with ID ${widgetId} was removed`);
+    // Additional logic if needed when a widget is removed
+    this.saveLayout();
+  }
 }
