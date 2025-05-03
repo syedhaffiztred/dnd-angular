@@ -107,7 +107,7 @@ export class HocWrapperComponent {
       if (this.grid) {
         console.log(`Removing widget ${this.widgetId || 'unknown'}`);
         
-        // Emit the removal event before actual removal
+        // Emit the removal event before actual removal to update widget library
         if (this.widgetId) {
           this.widgetRemoved.emit(this.widgetId);
         }
@@ -148,7 +148,6 @@ export class HocWrapperComponent {
     }
   }
 }
-
 
 // Component A - Performance Metrics
 @Component({

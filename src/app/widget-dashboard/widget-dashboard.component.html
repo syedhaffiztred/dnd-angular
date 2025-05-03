@@ -34,9 +34,16 @@
     <div class="side-panel" [class.open]="isEditMode">
       <div class="side-panel-header">
         <h3>Widget Library</h3>
+        <div class="available-count">{{ widgetConfigs.length }} Available</div>
       </div>
       <div class="sidebar">
-        <!-- Loop through widget configs instead of separate sidebar items -->
+        <!-- Only show widgets that haven't been used -->
+        <div *ngIf="widgetConfigs.length === 0" class="empty-state">
+          <mat-icon>info</mat-icon>
+          <p>All widgets are in use. Remove widgets from the dashboard to reuse them.</p>
+        </div>
+        
+        <!-- Loop through available widget configs -->
         <div *ngFor="let widget of widgetConfigs" 
              class="sidebar-item grid-stack-item" 
              draggable="true">

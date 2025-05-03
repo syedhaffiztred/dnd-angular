@@ -66,15 +66,5 @@ export interface WidgetConfig {
       title: "Team Activity",
       subtitle: "Team collaboration metrics"
     }
-   , {
-    selector: 'app-a',
-    id: 'performance-metrics',
-    w: 2,
-    h: 2,
-    maxW: 10,
-    maxH: 10,
-    icon: "speed",
-    title: "Performance Metrics",
-    subtitle: "Key business indicators"
-  },
+    // Note: Removed duplicate widget
   ];

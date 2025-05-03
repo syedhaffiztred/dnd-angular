@@ -10,7 +10,7 @@ import {
   NgGridStackWidget, 
   gsCreateNgComponents
 } from 'gridstack/dist/angular';
-import { GridStack } from 'gridstack';
+import { GridStack, GridStackNode } from 'gridstack';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { WIDGET_CONFIG, WidgetConfig } from '../widgets.config';
 
@@ -41,8 +41,14 @@ export class WidgetDashboardComponent implements OnInit, AfterViewInit {
   isEditMode = false;
   isLoading = false;
   
-  // Widget configurations
-  widgetConfigs: WidgetConfig[] = WIDGET_CONFIG;
+  // Original widget configurations
+  originalWidgetConfigs: WidgetConfig[] = WIDGET_CONFIG;
+  
+  // Available widgets for the sidebar (will be filtered as widgets are used)
+  widgetConfigs: WidgetConfig[] = [];
+  
+  // Set to track widgets that have been added to the grid
+  usedWidgetIds: Set<string> = new Set<string>();
 
   public gridOptions: NgGridStackOptions = {
     column: 12,
@@ -61,16 +67,22 @@ export class WidgetDashboardComponent implements OnInit, AfterViewInit {
   };
 
   // Map widget configs to GridStack format
-  public sidebarContent: NgGridStackWidget[] = this.widgetConfigs.map(config => ({
-    selector: config.selector,
-    id: config.id,
-    w: config.w,
-    h: config.h,
-    maxW: config.maxW,
-    maxH: config.maxH
-  }));
+  public sidebarContent: NgGridStackWidget[] = [];
 
-  constructor(private snackBar: MatSnackBar) {}
+  constructor(private snackBar: MatSnackBar) {
+    // Initialize widgetConfigs with unique widgets (remove duplicates by ID)
+    const uniqueIds = new Set<string>();
+    this.widgetConfigs = this.originalWidgetConfigs.filter(widget => {
+      if (!uniqueIds.has(widget.id)) {
+        uniqueIds.add(widget.id);
+        return true;
+      }
+      return false;
+    });
+    
+    // Initialize sidebarContent based on filtered widgets
+    this.updateSidebarContent();
+  }
 
   ngOnInit(): void {
     // Check for saved layout on init
@@ -78,6 +90,15 @@ export class WidgetDashboardComponent implements OnInit, AfterViewInit {
   }
 
   ngAfterViewInit(): void {
+    if (this.gridComp?.grid) {
+      // Setup callback for when a widget is added to the grid
+      this.gridComp.grid.on('added', (event: Event, nodes: GridStackNode[]) => {
+        setTimeout(() => {
+          this.handleWidgetsAdded(nodes);
+        });
+      });
+    }
+    
     // Setup drag and drop from sidebar
     GridStack.addRemoveCB = gsCreateNgComponents;
     GridStack.setupDragIn('.sidebar > .sidebar-item', { appendTo: 'body' }, this.sidebarContent);
@@ -90,6 +111,54 @@ export class WidgetDashboardComponent implements OnInit, AfterViewInit {
         this.textEl.nativeElement.value = '';
       }
     });
+  }
+
+  /**
+   * Updates the sidebar content based on available widgets
+   */
+  private updateSidebarContent(): void {
+    this.sidebarContent = this.widgetConfigs.map(config => ({
+      selector: config.selector,
+      id: config.id,
+      w: config.w,
+      h: config.h,
+      maxW: config.maxW,
+      maxH: config.maxH
+    }));
+  }
+
+  /**
+   * Handle widgets added to the grid
+   * Mark them as used and update the sidebar
+   */
+  private handleWidgetsAdded(nodes: GridStackNode[]): void {
+    let updated = false;
+    
+    nodes.forEach(node => {
+      const widgetId = node.id as string;
+      if (widgetId && !this.usedWidgetIds.has(widgetId)) {
+        this.usedWidgetIds.add(widgetId);
+        updated = true;
+      }
+    });
+    
+    if (updated) {
+      // Filter out the used widgets from available widgets
+      this.widgetConfigs = this.originalWidgetConfigs.filter(
+        widget => !this.usedWidgetIds.has(widget.id)
+      );
+      
+      // Update the sidebar content
+      this.updateSidebarContent();
+      
+      // Update GridStack drag-in setup
+      setTimeout(() => {
+        GridStack.setupDragIn('.sidebar > .sidebar-item', { appendTo: 'body' }, this.sidebarContent);
+      });
+      
+      // Save the current layout
+      this.saveLayout();
+    }
   }
 
   toggleEditMode(): void {
@@ -147,6 +216,8 @@ export class WidgetDashboardComponent implements OnInit, AfterViewInit {
       const layout = this.gridComp?.grid?.save(false, true);
       if (layout) {
         localStorage.setItem('dashboardLayout', JSON.stringify(layout));
+        // Also save the used widget IDs
+        localStorage.setItem('usedWidgetIds', JSON.stringify(Array.from(this.usedWidgetIds)));
         this.snackBar.open('Layout saved', 'Close', {
           duration: 2000,
           horizontalPosition: 'right',
@@ -157,6 +228,24 @@ export class WidgetDashboardComponent implements OnInit, AfterViewInit {
   }
 
   private checkForSavedLayout(): void {
+    // First restore used widget IDs if available
+    const savedWidgetIds = localStorage.getItem('usedWidgetIds');
+    if (savedWidgetIds) {
+      try {
+        const widgetIds = JSON.parse(savedWidgetIds);
+        this.usedWidgetIds = new Set(widgetIds);
+        
+        // Update available widgets
+        this.widgetConfigs = this.originalWidgetConfigs.filter(
+          widget => !this.usedWidgetIds.has(widget.id)
+        );
+        this.updateSidebarContent();
+      } catch (e) {
+        console.error('Error parsing saved widget IDs:', e);
+      }
+    }
+    
+    // Then restore layout
     const savedLayout = localStorage.getItem('dashboardLayout');
     if (savedLayout) {
       try {
@@ -177,23 +266,36 @@ export class WidgetDashboardComponent implements OnInit, AfterViewInit {
 
   private loadDefaultLayout(): void {
     // Use the first two widgets as default layout
+    const firstWidget = this.originalWidgetConfigs[0];
+    const secondWidget = this.originalWidgetConfigs[1];
+    
+    // Mark these widgets as used
+    this.usedWidgetIds.add(firstWidget.id);
+    this.usedWidgetIds.add(secondWidget.id);
+    
+    // Update available widgets
+    this.widgetConfigs = this.originalWidgetConfigs.filter(
+      widget => !this.usedWidgetIds.has(widget.id)
+    );
+    this.updateSidebarContent();
+    
     this.gridOptions = {
       ...this.gridOptions,
       children: [
         {
-          selector: this.widgetConfigs[0].selector,
-          id: this.widgetConfigs[0].id,
-          w: this.widgetConfigs[0].w,
-          h: this.widgetConfigs[0].h,
+          selector: firstWidget.selector,
+          id: firstWidget.id,
+          w: firstWidget.w,
+          h: firstWidget.h,
           x: 0,
           y: 0
         },
         {
-          selector: this.widgetConfigs[1].selector,
-          id: this.widgetConfigs[1].id,
-          w: this.widgetConfigs[1].w,
-          h: this.widgetConfigs[1].h,
-          x: this.widgetConfigs[0].w,
+          selector: secondWidget.selector,
+          id: secondWidget.id,
+          w: secondWidget.w,
+          h: secondWidget.h,
+          x: firstWidget.w,
           y: 0
         }
       ]
@@ -203,7 +305,25 @@ export class WidgetDashboardComponent implements OnInit, AfterViewInit {
   // Method to handle widget removal events from child components
   onWidgetRemoved(widgetId: string): void {
     console.log(`Widget with ID ${widgetId} was removed`);
-    // Additional logic if needed when a widget is removed
+    
+    // Remove from used widgets set
+    this.usedWidgetIds.delete(widgetId);
+    
+    // Add back to available widgets
+    const removedWidgetConfig = this.originalWidgetConfigs.find(w => w.id === widgetId);
+    if (removedWidgetConfig) {
+      this.widgetConfigs.push(removedWidgetConfig);
+      
+      // Update sidebar content
+      this.updateSidebarContent();
+      
+      // Update GridStack drag-in setup
+      setTimeout(() => {
+        GridStack.setupDragIn('.sidebar > .sidebar-item', { appendTo: 'body' }, this.sidebarContent);
+      });
+    }
+    
+    // Save the updated layout
     this.saveLayout();
   }
 }
