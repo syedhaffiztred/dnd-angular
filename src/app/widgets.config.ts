@@ -66,5 +66,4 @@ export interface WidgetConfig {
       title: "Team Activity",
       subtitle: "Team collaboration metrics"
     }
-    // Note: Removed duplicate widget
   ];

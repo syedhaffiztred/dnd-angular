@@ -12,8 +12,10 @@ import {
 } from 'gridstack/dist/angular';
 import { GridStack, GridStackNode } from 'gridstack';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { WidgetStateService } from '../widget-state.service';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { Observable } from 'rxjs';
 import { WIDGET_CONFIG, WidgetConfig } from '../widgets.config';
-
 
 @Component({
   selector: 'app-widget-dashboard',
@@ -24,7 +26,8 @@ import { WIDGET_CONFIG, WidgetConfig } from '../widgets.config';
     CommonModule,
     MatSlideToggleModule,
     FormsModule,
-    GridstackComponent
+    GridstackComponent,
+    MatProgressSpinnerModule
   ],
   templateUrl: './widget-dashboard.component.html',
   styleUrls: ['./widget-dashboard.component.css']
@@ -41,23 +44,16 @@ export class WidgetDashboardComponent implements OnInit, AfterViewInit {
   isEditMode = false;
   isLoading = false;
   
-  // Original widget configurations
-  originalWidgetConfigs: WidgetConfig[] = WIDGET_CONFIG;
+  widgetConfigs$: Observable<WidgetConfig[]>;
   
-  // Available widgets for the sidebar (will be filtered as widgets are used)
-  widgetConfigs: WidgetConfig[] = [];
-  
-  // Set to track widgets that have been added to the grid
-  usedWidgetIds: Set<string> = new Set<string>();
-
   public gridOptions: NgGridStackOptions = {
     column: 12,
     cellHeight: 50,
     margin: 5,
-    minRow: 150,
+    minRow: 100,
     acceptWidgets: true,
     float: true,
-    disableDrag: false, // Initial value matches isEditMode false
+    disableDrag: false,
     disableResize: false,
     alwaysShowResizeHandle: false,
     resizable: {
@@ -66,119 +62,76 @@ export class WidgetDashboardComponent implements OnInit, AfterViewInit {
     children: []
   };
 
-  // Map widget configs to GridStack format
   public sidebarContent: NgGridStackWidget[] = [];
 
-  constructor(private snackBar: MatSnackBar) {
-    // Initialize widgetConfigs with unique widgets (remove duplicates by ID)
-    const uniqueIds = new Set<string>();
-    this.widgetConfigs = this.originalWidgetConfigs.filter(widget => {
-      if (!uniqueIds.has(widget.id)) {
-        uniqueIds.add(widget.id);
-        return true;
-      }
-      return false;
-    });
-    
-    // Initialize sidebarContent based on filtered widgets
-    this.updateSidebarContent();
+  constructor(
+    private snackBar: MatSnackBar,
+    private widgetState: WidgetStateService
+  ) {
+    this.widgetConfigs$ = this.widgetState.availableWidgets$;
   }
 
   ngOnInit(): void {
-    // Check for saved layout on init
     this.checkForSavedLayout();
   }
 
   ngAfterViewInit(): void {
     if (this.gridComp?.grid) {
-      // Setup callback for when a widget is added to the grid
       this.gridComp.grid.on('added', (event: Event, nodes: GridStackNode[]) => {
         setTimeout(() => {
           this.handleWidgetsAdded(nodes);
         });
       });
+
+      this.gridComp.grid.on('removed', (event: Event, nodes: GridStackNode[]) => {
+        nodes.forEach(node => {
+          if (node.id) {
+            this.widgetState.releaseWidget(node.id as string);
+          }
+        });
+      });
     }
     
-    // Setup drag and drop from sidebar
     GridStack.addRemoveCB = gsCreateNgComponents;
-    GridStack.setupDragIn('.sidebar > .sidebar-item', { appendTo: 'body' }, this.sidebarContent);
- 
-    setTimeout(() => {
-      if (this.origTextEl) {
-        this.origTextEl.nativeElement.value = JSON.stringify(this.gridOptions, null, '  ');
-      }
-      if (this.textEl) {
-        this.textEl.nativeElement.value = '';
-      }
-    });
-  }
-
-  /**
-   * Updates the sidebar content based on available widgets
-   */
-  private updateSidebarContent(): void {
-    this.sidebarContent = this.widgetConfigs.map(config => ({
-      selector: config.selector,
-      id: config.id,
-      w: config.w,
-      h: config.h,
-      maxW: config.maxW,
-      maxH: config.maxH
-    }));
-  }
-
-  /**
-   * Handle widgets added to the grid
-   * Mark them as used and update the sidebar
-   */
-  private handleWidgetsAdded(nodes: GridStackNode[]): void {
-    let updated = false;
-    
-    nodes.forEach(node => {
-      const widgetId = node.id as string;
-      if (widgetId && !this.usedWidgetIds.has(widgetId)) {
-        this.usedWidgetIds.add(widgetId);
-        updated = true;
-      }
-    });
-    
-    if (updated) {
-      // Filter out the used widgets from available widgets
-      this.widgetConfigs = this.originalWidgetConfigs.filter(
-        widget => !this.usedWidgetIds.has(widget.id)
-      );
+    this.widgetConfigs$.subscribe(configs => {
+      this.sidebarContent = configs.map(config => ({
+        selector: config.selector,
+        id: config.id,
+        w: config.w,
+        h: config.h,
+        maxW: config.maxW,
+        maxH: config.maxH
+      }));
       
-      // Update the sidebar content
-      this.updateSidebarContent();
-      
-      // Update GridStack drag-in setup
       setTimeout(() => {
         GridStack.setupDragIn('.sidebar > .sidebar-item', { appendTo: 'body' }, this.sidebarContent);
       });
-      
-      // Save the current layout
-      this.saveLayout();
-    }
+    });
+  }
+
+  private handleWidgetsAdded(nodes: GridStackNode[]): void {
+    nodes.forEach(node => {
+      const widgetId = node.id as string;
+      if (widgetId) {
+        this.widgetState.useWidget(widgetId);
+      }
+    });
+    this.saveLayout();
   }
 
   toggleEditMode(): void {
     this.isEditMode = !this.isEditMode;
-    
-    // Update gridOptions with the correct disableDrag and disableResize values
-    // In edit mode, we want to disable dragging and enable resizing
     this.gridOptions = {
       ...this.gridOptions,
       disableDrag: this.isEditMode,
       disableResize: !this.isEditMode
     };
 
-    // Update the grid with new options
     if (this.gridComp?.grid) {
       this.gridComp.grid.enableMove(!this.isEditMode);
       this.gridComp.grid.enableResize(!this.isEditMode);
     }
 
-    // Save layout when exiting edit mode
     if (!this.isEditMode) {
       this.saveLayout();
     }
@@ -213,11 +166,15 @@ export class WidgetDashboardComponent implements OnInit, AfterViewInit {
     
     clearTimeout(this.saveTimeout);
     this.saveTimeout = setTimeout(() => {
-      const layout = this.gridComp?.grid?.save(false, true);
+      const layout = this.gridComp?.grid?.save(false, true)
+
+      console.log('layout',layout)
+      ;
       if (layout) {
         localStorage.setItem('dashboardLayout', JSON.stringify(layout));
-        // Also save the used widget IDs
-        localStorage.setItem('usedWidgetIds', JSON.stringify(Array.from(this.usedWidgetIds)));
+        this.widgetState.usedWidgetIds$.subscribe(usedIds => {
+          localStorage.setItem('usedWidgetIds', JSON.stringify(Array.from(usedIds)));
+        });
         this.snackBar.open('Layout saved', 'Close', {
           duration: 2000,
           horizontalPosition: 'right',
@@ -228,32 +185,26 @@ export class WidgetDashboardComponent implements OnInit, AfterViewInit {
   }
 
   private checkForSavedLayout(): void {
-    // First restore used widget IDs if available
     const savedWidgetIds = localStorage.getItem('usedWidgetIds');
     if (savedWidgetIds) {
       try {
         const widgetIds = JSON.parse(savedWidgetIds);
-        this.usedWidgetIds = new Set(widgetIds);
-        
-        // Update available widgets
-        this.widgetConfigs = this.originalWidgetConfigs.filter(
-          widget => !this.usedWidgetIds.has(widget.id)
-        );
-        this.updateSidebarContent();
+        this.widgetState.initialize(widgetIds);
       } catch (e) {
         console.error('Error parsing saved widget IDs:', e);
+        this.widgetState.initialize();
       }
+    } else {
+      this.widgetState.initialize();
     }
     
-    // Then restore layout
     const savedLayout = localStorage.getItem('dashboardLayout');
     if (savedLayout) {
       try {
         const layout = JSON.parse(savedLayout);
-        // Set the saved layout to be loaded when the grid is ready
         this.gridOptions = {
           ...this.gridOptions,
-          children: layout
+          children: layout.children
         };
       } catch (e) {
         console.error('Error parsing saved layout:', e);
@@ -265,19 +216,11 @@ export class WidgetDashboardComponent implements OnInit, AfterViewInit {
   }
 
   private loadDefaultLayout(): void {
-    // Use the first two widgets as default layout
-    const firstWidget = this.originalWidgetConfigs[0];
-    const secondWidget = this.originalWidgetConfigs[1];
+    const firstWidget = WIDGET_CONFIG[0];
+    const secondWidget = WIDGET_CONFIG[1];
     
-    // Mark these widgets as used
-    this.usedWidgetIds.add(firstWidget.id);
-    this.usedWidgetIds.add(secondWidget.id);
-    
-    // Update available widgets
-    this.widgetConfigs = this.originalWidgetConfigs.filter(
-      widget => !this.usedWidgetIds.has(widget.id)
-    );
-    this.updateSidebarContent();
+    this.widgetState.useWidget(firstWidget.id);
+    this.widgetState.useWidget(secondWidget.id);
     
     this.gridOptions = {
       ...this.gridOptions,
@@ -302,28 +245,8 @@ export class WidgetDashboardComponent implements OnInit, AfterViewInit {
     };
   }
 
-  // Method to handle widget removal events from child components
   onWidgetRemoved(widgetId: string): void {
-    console.log(`Widget with ID ${widgetId} was removed`);
-    
-    // Remove from used widgets set
-    this.usedWidgetIds.delete(widgetId);
-    
-    // Add back to available widgets
-    const removedWidgetConfig = this.originalWidgetConfigs.find(w => w.id === widgetId);
-    if (removedWidgetConfig) {
-      this.widgetConfigs.push(removedWidgetConfig);
-      
-      // Update sidebar content
-      this.updateSidebarContent();
-      
-      // Update GridStack drag-in setup
-      setTimeout(() => {
-        GridStack.setupDragIn('.sidebar > .sidebar-item', { appendTo: 'body' }, this.sidebarContent);
-      });
-    }
-    
-    // Save the updated layout
+    this.widgetState.releaseWidget(widgetId);
     this.saveLayout();
   }
 }

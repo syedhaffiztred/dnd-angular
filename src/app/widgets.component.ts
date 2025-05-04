@@ -1,11 +1,7 @@
-import { CommonModule } from '@angular/common';
 import { Component, ElementRef, Input, Output, EventEmitter } from '@angular/core';
+import { CommonModule } from '@angular/common';
 import { GridStack } from 'gridstack';
 
-/**
- * Higher-Order Component Wrapper for grid widgets
- * This component provides a consistent UI shell for all dashboard widgets
- */
 @Component({
   selector: 'app-hoc-wrapper',
   standalone: true,
@@ -76,17 +72,11 @@ export class HocWrapperComponent {
   
   constructor(private el: ElementRef) {}
   
-  /**
-   * Removes this widget from the grid
-   * @param event The DOM event from the click
-   */
   removeWidget(event: Event): void {
     try {
-      // Prevent event bubbling
       event.preventDefault();
       event.stopPropagation();
       
-      // Prevent multiple removal attempts
       if (this.isBeingRemoved) {
         console.warn('Widget removal already in progress');
         return;
@@ -94,8 +84,9 @@ export class HocWrapperComponent {
       
       this.isBeingRemoved = true;
       
-      // Find the grid-stack-item parent element
       const widget = this.el.nativeElement.closest('.grid-stack-item');
+
+      console.log('widget',widget)
       
       if (!widget) {
         console.warn('Cannot remove widget: Grid item element not found');
@@ -103,35 +94,20 @@ export class HocWrapperComponent {
         return;
       }
       
-      // If grid was provided via input, use it directly
+      if (this.widgetId) {
+        this.widgetRemoved.emit(this.widgetId);
+        
+      }
+      
       if (this.grid) {
-        console.log(`Removing widget ${this.widgetId || 'unknown'}`);
-        
-        // Emit the removal event before actual removal to update widget library
-        if (this.widgetId) {
-          this.widgetRemoved.emit(this.widgetId);
-        }
-        
-        // Remove the widget from GridStack
         this.grid.removeWidget(widget, true, true);
       } else {
-        // Try to find GridStack instance if not provided
-        console.warn('Grid instance not provided to component - attempting to find GridStack from DOM');
-        
-        // Find the closest grid element
         const gridElement = widget.closest('.grid-stack');
         
         if (gridElement) {
-          // Get the GridStack instance from the element
           const gridInstance = gridElement.gridstack;
           
           if (gridInstance) {
-            // Emit the removal event before actual removal
-            if (this.widgetId) {
-              this.widgetRemoved.emit(this.widgetId);
-            }
-            
-            // Remove from GridStack
             gridInstance.removeWidget(widget, true, true);
           } else {
             console.error('GridStack instance not found');
@@ -148,7 +124,6 @@ export class HocWrapperComponent {
     }
   }
 }
-
 // Component A - Performance Metrics
 @Component({
   selector: 'app-a',
